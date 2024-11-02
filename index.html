@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <style>
+        /* Keep all previous styles */
+        body {
+            margin: 0;
+            padding: 16px;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .grid-item {
+            position: relative;
+            padding-bottom: 100%;
+            background: #f7f7f7;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .grid-item:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .grid-item.drag-over {
+            border: 2px dashed #0066ff;
+            background: rgba(0, 102, 255, 0.1);
+        }
+
+        .image-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .grid-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .upload-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.9);
+            transition: background 0.3s ease;
+        }
+
+        .upload-icon {
+            width: 32px;
+            height: 32px;
+            margin-bottom: 8px;
+            fill: #666;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 14px;
+            text-align: center;
+            padding: 0 8px;
+            max-width: 150px;
+            margin: 0 auto;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .button-container {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: none;
+            gap: 4px;
+        }
+
+        .icon-button {
+            background: rgba(255,255,255,0.9);
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 4px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .test-pattern {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 800px;
+            margin: 0 auto;
+            height: calc(100vh - 100px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-body {
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #0066ff;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="status-message" id="statusMessage"></div>
+    <div class="grid-container"></div>
+    
+    <div class="modal" id="cropModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Crop Image</h3>
+                <button class="icon-button" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <img id="cropImage" style="max-width: 100%; max-height: 100%;">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="cropImage()">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let cropper;
+        let currentGridItem;
+
+        // Utility functions
+        function showStatus(message, duration = 3000) {
+            const status = document.getElementById('statusMessage');
+            status.textContent = message;
+            status.style.display = 'block';
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, duration);
+        }
+
+        function handleImageError(error) {
+            showStatus('Error: ' + error.message);
+            console.error('Error:', error);
+        }
+
+        // Image handling functions
+        function updateImage(img, src) {
+            img.onerror = () => {
+                handleImageError(new Error('Failed to load image'));
+                removeImage(img);
+            };
+            
+            img.onload = () => {
+                img.style.display = 'block';
+                img.closest('.grid-item').querySelector('.upload-overlay').style.display = 'none';
+                img.closest('.grid-item').querySelector('.test-pattern').style.display = 'none';
+                img.closest('.grid-item').querySelector('.button-container').style.display = 'flex';
+                saveImages();
+                showStatus('Image uploaded successfully!');
+            };
+            
+            img.src = src;
+        }
+
+        function removeImage(img) {
+            img.src = '';
+            img.style.display = 'none';
+            const gridItem = img.closest('.grid-item');
+            gridItem.querySelector('.upload-overlay').style.display = 'flex';
+            gridItem.querySelector('.test-pattern').style.display = 'block';
+            gridItem.querySelector('.button-container').style.display = 'none';
+            gridItem.querySelector('.file-input').value = '';
+            saveImages();
+        }
+
+        // Modal and cropping functions
+        function openCropModal(img) {
+            currentGridItem = img;
+            const modal = document.getElementById('cropModal');
+            const cropImage = document.getElementById('cropImage');
+            
+            modal.style.display = 'block';
+            cropImage.src = img.src;
+            
+            if (cropper) {
+                cropper.destroy();
+            }
+            
+            cropper = new Cropper(cropImage, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('cropModal').style.display = 'none';
+            if (cropper) {
+                cropper.destroy();
+            }
+        }
+
+        function cropImage() {
+            if (cropper) {
+                const croppedCanvas = cropper.getCroppedCanvas();
+                const croppedImage = croppedCanvas.toDataURL();
+                updateImage(currentGridItem, croppedImage);
+                closeModal();
+            }
+        }
+
+        // Storage functions
+        function saveImages() {
+            const images = [];
+            document.querySelectorAll('.grid-item img').forEach(img => {
+                images.push({
+                    index: parseInt(img.dataset.index),
+                    src: img.style.display === 'none' ? '' : img.src
+                });
+            });
+            localStorage.setItem('gridImages', JSON.stringify(images));
+        }
+
+        function loadSavedImages() {
+            const savedImages = JSON.parse(localStorage.getItem('gridImages')) || [];
+            savedImages.forEach(savedImage => {
+                if (savedImage.src) {
+                    const img = document.querySelector(`img[data-index="${savedImage.index}"]`);
+                    updateImage(img, savedImage.src);
+                }
+            });
+        }
+
+        // Grid item setup function
+        function setupGridItem(gridItem) {
+            const fileInput = gridItem.querySelector('.file-input');
+            const img = gridItem.querySelector('img');
+            const removeButton = gridItem.querySelector('.remove-button');
+            const cropButton = gridItem.querySelector('.crop-button');
+
+            // Drag and drop handlers
+            gridItem.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                gridItem.classList.add('drag-over');
+            });
+
+            gridItem.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                gridItem.classList.remove('drag-over');
+            });
+
+            gridItem.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                gridItem.classList.remove('drag-over');
+
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        updateImage(img, e.target.result);
+                    };
+                    reader.readAsDataURL(files[0]);
+                }
+            });
+
+            // Click handlers
+            gridItem.addEventListener('click', (e) => {
+                if (!e.target.closest('.button-container')) {
+                    fileInput.click();
+                }
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        updateImage(img, e.target.result);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            removeButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeImage(img);
+            });
+
+            cropButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openCropModal(img);
+            });
+        }
+
+        // Grid creation function
+        function createGridItems() {
+            const container = document.querySelector('.grid-container');
+            for (let i = 1; i <= 9; i++) {
+                const gridItem = document.createElement('div');
+                gridItem.className = 'grid-item';
+                gridItem.innerHTML = `
+                    <div class="image-container">
+                        <div class="test-pattern"></div>
+                        <img style="display: none;" alt="Image ${i}" data-index="${i-1}">
+                        <div class="upload-overlay">
+                            <svg class="upload-icon" viewBox="0 0 24 24">
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                            </svg>
+                            <div class="upload-text">Click or drag image here</div>
+                        </div>
+                        <div class="button-container">
+                            <button class="icon-button crop-button" title="Crop">✂️</button>
+                            <button class="icon-button remove-button">×</button>
+                        </div>
+                    </div>
+                    <input type="file" class="file-input" accept="image/*">
+                `;
+                
+                setupGridItem(gridItem);
+                container.appendChild(gridItem);
+            }
+            
+            showStatus('Grid ready! Click or drag images to upload', 5000);
+        }
+
+        // Initialize the grid when the document is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            createGridItems();
+            loadSavedImages();
+        });
+    </script>
+</body>
+</html>
