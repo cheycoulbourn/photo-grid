@@ -6,11 +6,17 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             margin: 0;
             padding: 4px;
             background: white;
-            font-family: Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         .grid-container {
@@ -25,17 +31,15 @@
 
         .grid-item {
             position: relative;
-            padding-bottom: 100%;
+            padding-bottom: 100%; /* Makes it a perfect square */
             background: white;
             overflow: hidden;
             transition: background-color 0.2s ease;
             border: 1px solid #dbdbdb;
+            border-radius: 4px;
         }
 
-        .grid-item:hover {
-            background-color: #f5f5f5;
-        }
-
+        /* Rest of the styles remain exactly the same */
         .grid-item img {
             position: absolute;
             top: 0;
@@ -57,7 +61,6 @@
             justify-content: center;
             background: white;
             transition: background-color 0.2s ease;
-            cursor: pointer;
         }
 
         .grid-item:hover .upload-overlay {
@@ -85,12 +88,21 @@
             display: none;
         }
 
+        .image-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
         .button-container {
             position: absolute;
             top: 8px;
             right: 8px;
             display: none;
             gap: 8px;
+            z-index: 2;
         }
 
         .grid-item:hover .button-container {
@@ -139,23 +151,78 @@
             flex-direction: column;
         }
 
-        .status-message {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-weight: normal;
+            letter-spacing: 0.5px;
+        }
+
+        .modal-body {
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn {
             padding: 8px 16px;
-            background: black;
-            color: white;
+            border: 1px solid black;
+            cursor: pointer;
             font-size: 12px;
             letter-spacing: 0.5px;
-            z-index: 1000;
-            display: none;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: black;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: white;
+            color: black;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: black;
+        }
+
+        .btn-secondary:hover {
+            background: black;
+            color: white;
+        }
+
+        .cropper-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .grid-container {
+                gap: 2px;
+            }
+            
+            .grid-item {
+                border-radius: 2px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="status-message" id="statusMessage"></div>
     <div class="grid-container"></div>
     
     <div class="modal" id="cropModal">
@@ -178,98 +245,60 @@
         let cropper = null;
         let activeGridItem = null;
 
-        // URL parameter handling
-        function getImageFromUrl(index) {
-            const params = new URLSearchParams(window.location.hash.slice(1));
-            return params.get(`img${index}`);
-        }
-
-        function updateUrlWithImage(index, imageData) {
-            const params = new URLSearchParams(window.location.hash.slice(1));
-            if (imageData) {
-                params.set(`img${index}`, imageData);
-            } else {
-                params.delete(`img${index}`);
-            }
-            window.location.hash = params.toString();
-        }
-
-        function compressImage(base64String) {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    // Calculate new dimensions (max 800px)
-                    let width = img.width;
-                    let height = img.height;
-                    const maxSize = 800;
-                    
-                    if (width > maxSize || height > maxSize) {
-                        if (width > height) {
-                            height = Math.round((height * maxSize) / width);
-                            width = maxSize;
-                        } else {
-                            width = Math.round((width * maxSize) / height);
-                            height = maxSize;
-                        }
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    
-                    ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.7));
-                };
-                img.src = base64String;
+        // Function to save images to localStorage
+        function saveImages() {
+            const images = {};
+            document.querySelectorAll('.grid-item img').forEach(img => {
+                const index = img.dataset.index;
+                if (img.src && img.style.display !== 'none') {
+                    images[index] = img.src;
+                }
             });
+            localStorage.setItem('gridImages', JSON.stringify(images));
         }
 
-        function showStatus(message, duration = 2000) {
-            const status = document.getElementById('statusMessage');
-            status.textContent = message;
-            status.style.display = 'block';
-            setTimeout(() => {
-                status.style.display = 'none';
-            }, duration);
+        // Function to load images from localStorage
+        function loadImages() {
+            const savedImages = localStorage.getItem('gridImages');
+            if (savedImages) {
+                const images = JSON.parse(savedImages);
+                Object.entries(images).forEach(([index, src]) => {
+                    const img = document.querySelector(`img[data-index="${index}"]`);
+                    if (img) {
+                        img.src = src;
+                        img.style.display = 'block';
+                        img.closest('.grid-item').querySelector('.upload-overlay').style.display = 'none';
+                    }
+                });
+            }
         }
 
-        async function setupGridItem(gridItem) {
+        function setupGridItem(gridItem) {
             const fileInput = gridItem.querySelector('.file-input');
             const uploadOverlay = gridItem.querySelector('.upload-overlay');
             const img = gridItem.querySelector('img');
-            const index = parseInt(img.dataset.index);
-
-            // Load saved image if exists
-            const savedImage = getImageFromUrl(index);
-            if (savedImage) {
-                img.src = savedImage;
-                img.style.display = 'block';
-                uploadOverlay.style.display = 'none';
-            }
+            const cropButton = gridItem.querySelector('.crop-button');
+            const removeButton = gridItem.querySelector('.remove-button');
 
             uploadOverlay.addEventListener('click', () => fileInput.click());
 
-            fileInput.addEventListener('change', async (e) => {
+            fileInput.addEventListener('change', (e) => {
                 if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
                     const reader = new FileReader();
 
-                    reader.onload = async (e) => {
-                        const compressed = await compressImage(e.target.result);
-                        img.src = compressed;
+                    reader.onload = (e) => {
+                        img.src = e.target.result;
                         img.style.display = 'block';
                         uploadOverlay.style.display = 'none';
-                        updateUrlWithImage(index, compressed);
-                        showStatus('Image uploaded');
+                        saveImages(); // Save after uploading
                     };
 
                     reader.readAsDataURL(file);
                 }
             });
 
-            gridItem.querySelector('.crop-button').addEventListener('click', () => {
+            cropButton.addEventListener('click', () => {
                 activeGridItem = gridItem;
                 const modalImg = document.getElementById('cropImage');
                 modalImg.src = img.src;
@@ -280,19 +309,18 @@
                 }
                 
                 cropper = new Cropper(modalImg, {
-                    aspectRatio: 1,
+                    aspectRatio: 1, // Forces a square crop
                     viewMode: 1,
                     autoCropArea: 1,
                 });
             });
 
-            gridItem.querySelector('.remove-button').addEventListener('click', () => {
+            removeButton.addEventListener('click', () => {
                 img.src = '';
                 img.style.display = 'none';
                 uploadOverlay.style.display = 'flex';
                 fileInput.value = '';
-                updateUrlWithImage(index, null);
-                showStatus('Image removed');
+                saveImages(); // Save after removing
             });
         }
 
@@ -304,22 +332,20 @@
             }
         }
 
-        async function cropImage() {
+        function cropImage() {
             if (!cropper || !activeGridItem) return;
             
             const croppedCanvas = cropper.getCroppedCanvas();
             const img = activeGridItem.querySelector('img');
-            const compressed = await compressImage(croppedCanvas.toDataURL());
-            img.src = compressed;
-            updateUrlWithImage(parseInt(img.dataset.index), compressed);
+            img.src = croppedCanvas.toDataURL();
+            saveImages(); // Save after cropping
             
             closeModal();
-            showStatus('Image cropped');
         }
 
         function createGridItems() {
             const container = document.querySelector('.grid-container');
-            
+            // Changed to 9 items
             for (let i = 1; i <= 9; i++) {
                 const gridItem = document.createElement('div');
                 gridItem.className = 'grid-item';
@@ -340,9 +366,12 @@
                     <input type="file" class="file-input" accept="image/*">
                 `;
                 
-                container.appendChild(gridItem);
                 setupGridItem(gridItem);
+                container.appendChild(gridItem);
             }
+            
+            // Load saved images after creating grid items
+            loadImages();
         }
 
         document.addEventListener('DOMContentLoaded', createGridItems);
