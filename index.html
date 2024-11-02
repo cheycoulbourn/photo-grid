@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -5,183 +6,267 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
-    <!-- Previous styles remain exactly the same -->
     <style>
-        /* All previous styles remain exactly the same */
-        /* ... */
-        .debug-panel {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 10px;
-            border-radius: 4px;
+        /* Previous styles remain the same */
+        body {
+            margin: 0;
+            padding: 4px;
+            background: white;
+            font-family: Helvetica, Arial, sans-serif;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 3px;
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 0;
+        }
+
+        .grid-item {
+            position: relative;
+            padding-bottom: 100%;
+            background: white;
+            overflow: hidden;
+            transition: background-color 0.2s ease;
+            border: 1px solid #dbdbdb;  /* Added Instagram-style gray border */
+        }
+
+        /* All other styles remain exactly the same */
+        .grid-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .grid-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .upload-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            transition: background-color 0.2s ease;
+        }
+
+        .grid-item:hover .upload-overlay {
+            background-color: #f5f5f5;
+        }
+
+        .upload-icon {
+            width: 24px;
+            height: 24px;
+            margin-bottom: 8px;
+            stroke: black;
+            stroke-width: 1;
+            fill: none;
+        }
+
+        .upload-text {
+            color: black;
             font-size: 12px;
+            text-align: center;
+            padding: 0 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .image-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .button-container {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: none;
+            gap: 8px;
+        }
+
+        .grid-item:hover .button-container {
+            display: flex;
+        }
+
+        .icon-button {
+            background: white;
+            border: 1px solid black;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: black;
+            padding: 0;
+            transition: all 0.2s ease;
+        }
+
+        .icon-button:hover {
+            background: black;
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.85);
             z-index: 1000;
-            max-width: 300px;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            height: calc(100vh - 100px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid black;
+            padding-bottom: 10px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-weight: normal;
+            letter-spacing: 0.5px;
+        }
+
+        .modal-body {
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-top: 1px solid black;
+            padding-top: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid black;
+            cursor: pointer;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            font-family: Helvetica, Arial, sans-serif;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: black;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: white;
+            color: black;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: black;
+        }
+
+        .btn-secondary:hover {
+            background: black;
+            color: white;
+        }
+
+        .cropper-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        .cropper-view-box,
+        .cropper-face {
+            border-radius: 0;
+        }
+
+        .cropper-line,
+        .cropper-point {
+            background: black;
+        }
+
+        .cropper-view-box {
+            outline: 1px solid black;
+        }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 16px;
+            background: black;
+            color: white;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            z-index: 1000;
             display: none;
         }
     </style>
 </head>
 <body>
+    <!-- Rest of the HTML remains exactly the same -->
     <div class="status-message" id="statusMessage"></div>
-    <div class="debug-panel" id="debugPanel"></div>
     <div class="grid-container"></div>
     
-    <!-- Modal remains exactly the same -->
     <div class="modal" id="cropModal">
-        <!-- ... modal content remains the same ... -->
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Crop Image</h3>
+                <button class="icon-button" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <img id="cropImage" style="max-width: 100%; max-height: 100%;">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="cropImage()">Apply</button>
+            </div>
+        </div>
     </div>
 
     <script>
+        // JavaScript remains exactly the same
         let cropper = null;
         let activeGridItem = null;
-        const STORAGE_KEY = 'instagram_grid_images_v1'; // Unique storage key
-
-        // Debug function
-        function debug(message) {
-            const debugPanel = document.getElementById('debugPanel');
-            const timestamp = new Date().toLocaleTimeString();
-            debugPanel.innerHTML += `${timestamp}: ${message}<br>`;
-            debugPanel.style.display = 'block';
-            console.log(`${timestamp}: ${message}`);
-        }
-
-        // Function to check if localStorage is available
-        function isStorageAvailable() {
-            try {
-                const test = '__storage_test__';
-                localStorage.setItem(test, test);
-                localStorage.removeItem(test);
-                return true;
-            } catch(e) {
-                debug('localStorage not available: ' + e.message);
-                return false;
-            }
-        }
-
-        // Function to save images to localStorage with error handling
-        function saveImages() {
-            try {
-                if (!isStorageAvailable()) {
-                    showStatus('Storage not available', 3000);
-                    return;
-                }
-
-                const images = {};
-                let totalSize = 0;
-                
-                document.querySelectorAll('.grid-item img').forEach(img => {
-                    const index = img.dataset.index;
-                    if (img.src && img.style.display !== 'none') {
-                        images[index] = img.src;
-                        totalSize += img.src.length;
-                    }
-                });
-
-                const imagesJSON = JSON.stringify(images);
-                debug(`Attempting to save ${Object.keys(images).length} images (${Math.round(totalSize/1024)}KB)`);
-                
-                try {
-                    localStorage.setItem(STORAGE_KEY, imagesJSON);
-                    debug('Images saved successfully');
-                    showStatus('Changes saved');
-                } catch (e) {
-                    debug('Error saving to localStorage: ' + e.message);
-                    showStatus('Error saving changes - storage might be full', 3000);
-                    
-                    // If storage is full, try to save compressed versions
-                    if (e.name === 'QuotaExceededError') {
-                        compressAndSave(images);
-                    }
-                }
-            } catch (e) {
-                debug('Error in saveImages: ' + e.message);
-                showStatus('Error saving changes', 3000);
-            }
-        }
-
-        // Function to compress images if storage is full
-        function compressAndSave(images) {
-            try {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const maxDimension = 800; // Max width/height for compressed images
-                
-                Object.entries(images).forEach(([index, src]) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        let width = img.width;
-                        let height = img.height;
-                        
-                        if (width > maxDimension || height > maxDimension) {
-                            if (width > height) {
-                                height *= maxDimension / width;
-                                width = maxDimension;
-                            } else {
-                                width *= maxDimension / height;
-                                height = maxDimension;
-                            }
-                        }
-                        
-                        canvas.width = width;
-                        canvas.height = height;
-                        ctx.drawImage(img, 0, 0, width, height);
-                        images[index] = canvas.toDataURL('image/jpeg', 0.7);
-                    };
-                    img.src = src;
-                });
-
-                // Try saving again after compression
-                setTimeout(() => {
-                    try {
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(images));
-                        debug('Compressed images saved successfully');
-                        showStatus('Changes saved (compressed)');
-                    } catch (e) {
-                        debug('Error saving compressed images: ' + e.message);
-                        showStatus('Unable to save changes', 3000);
-                    }
-                }, 500);
-            } catch (e) {
-                debug('Error in compressAndSave: ' + e.message);
-            }
-        }
-
-        // Function to load images from localStorage with error handling
-        function loadImages() {
-            try {
-                if (!isStorageAvailable()) {
-                    debug('Storage not available for loading');
-                    return;
-                }
-
-                const savedImages = localStorage.getItem(STORAGE_KEY);
-                if (!savedImages) {
-                    debug('No saved images found');
-                    return;
-                }
-
-                const images = JSON.parse(savedImages);
-                debug(`Loading ${Object.keys(images).length} saved images`);
-
-                Object.entries(images).forEach(([index, src]) => {
-                    const img = document.querySelector(`img[data-index="${index}"]`);
-                    if (img) {
-                        img.src = src;
-                        img.style.display = 'block';
-                        img.closest('.grid-item').querySelector('.upload-overlay').style.display = 'none';
-                        debug(`Loaded image for index ${index}`);
-                    }
-                });
-
-                showStatus('Images restored', 2000);
-            } catch (e) {
-                debug('Error in loadImages: ' + e.message);
-                showStatus('Error loading saved images', 3000);
-            }
-        }
 
         function showStatus(message, duration = 2000) {
             const status = document.getElementById('statusMessage');
@@ -192,7 +277,6 @@
             }, duration);
         }
 
-        // Rest of the functions remain the same, but with save calls added
         function setupGridItem(gridItem) {
             const fileInput = gridItem.querySelector('.file-input');
             const uploadOverlay = gridItem.querySelector('.upload-overlay');
@@ -212,7 +296,6 @@
                         img.style.display = 'block';
                         uploadOverlay.style.display = 'none';
                         showStatus('Image uploaded');
-                        saveImages(); // Save after upload
                     };
 
                     reader.readAsDataURL(file);
@@ -242,7 +325,6 @@
                 uploadOverlay.style.display = 'flex';
                 fileInput.value = '';
                 showStatus('Image removed');
-                saveImages(); // Save after removal
             });
         }
 
@@ -260,7 +342,6 @@
             const croppedCanvas = cropper.getCroppedCanvas();
             const img = activeGridItem.querySelector('img');
             img.src = croppedCanvas.toDataURL();
-            saveImages(); // Save after cropping
             
             closeModal();
             showStatus('Image cropped');
@@ -291,15 +372,9 @@
                 setupGridItem(gridItem);
                 container.appendChild(gridItem);
             }
-            
-            // Load saved images after creating grid items
-            loadImages();
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            createGridItems();
-            debug('Grid initialized');
-        });
+        document.addEventListener('DOMContentLoaded', createGridItems);
     </script>
 </body>
 </html>
