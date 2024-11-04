@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <!-- Firebase SDK -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-storage-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-auth-compat.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -31,7 +35,7 @@
 
         .grid-item {
             position: relative;
-            padding-bottom: 100%; /* Makes it a perfect square */
+            padding-bottom: 100%;
             background: white;
             overflow: hidden;
             transition: background-color 0.2s ease;
@@ -39,7 +43,6 @@
             border-radius: 4px;
         }
 
-        /* Rest of the styles remain exactly the same */
         .grid-item img {
             position: absolute;
             top: 0;
@@ -220,6 +223,33 @@
                 border-radius: 2px;
             }
         }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .loading-spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -242,34 +272,60 @@
     </div>
 
     <script>
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyA-7A_QOV-W0tCtlG-vJB5nTKxjnhK3Zrk",
+            authDomain: "image-grid-1d9d4.firebaseapp.com",
+            projectId: "image-grid-1d9d4",
+            storageBucket: "image-grid-1d9d4.firebasestorage.app",
+            messagingSenderId: "685249777137",
+            appId: "1:685249777137:web:b1c1daecd19b94b0784850",
+            measurementId: "G-WZMSH9YQK5"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const storage = firebase.storage();
+        let userId = null;
+
+        // Anonymous authentication
+        firebase.auth().signInAnonymously()
+            .then((userCredential) => {
+                userId = userCredential.user.uid;
+                loadImages(); // Load images after authentication
+            })
+            .catch((error) => {
+                console.error("Auth error:", error);
+            });
+
         let cropper = null;
         let activeGridItem = null;
 
-        // Function to save images to localStorage
-        function saveImages() {
-            const images = {};
-            document.querySelectorAll('.grid-item img').forEach(img => {
-                const index = img.dataset.index;
-                if (img.src && img.style.display !== 'none') {
-                    images[index] = img.src;
-                }
-            });
-            localStorage.setItem('gridImages', JSON.stringify(images));
+        async function saveImage(index, blob) {
+            if (!userId) return;
+            
+            const imageRef = storage.ref(`users/${userId}/image${index}.jpg`);
+            await imageRef.put(blob);
+            return await imageRef.getDownloadURL();
         }
 
-        // Function to load images from localStorage
-        function loadImages() {
-            const savedImages = localStorage.getItem('gridImages');
-            if (savedImages) {
-                const images = JSON.parse(savedImages);
-                Object.entries(images).forEach(([index, src]) => {
-                    const img = document.querySelector(`img[data-index="${index}"]`);
+        async function loadImages() {
+            if (!userId) return;
+
+            for (let i = 0; i < 9; i++) {
+                try {
+                    const imageRef = storage.ref(`users/${userId}/image${i}.jpg`);
+                    const url = await imageRef.getDownloadURL();
+                    const img = document.querySelector(`img[data-index="${i}"]`);
                     if (img) {
-                        img.src = src;
+                        img.src = url;
                         img.style.display = 'block';
                         img.closest('.grid-item').querySelector('.upload-overlay').style.display = 'none';
                     }
-                });
+                } catch (error) {
+                    if (error.code !== 'storage/object-not-found') {
+                        console.error(`Error loading image ${i}:`, error);
+                    }
+                }
             }
         }
 
@@ -279,22 +335,58 @@
             const img = gridItem.querySelector('img');
             const cropButton = gridItem.querySelector('.crop-button');
             const removeButton = gridItem.querySelector('.remove-button');
+            const loadingOverlay = gridItem.querySelector('.loading-overlay');
 
             uploadOverlay.addEventListener('click', () => fileInput.click());
 
-            fileInput.addEventListener('change', (e) => {
+            fileInput.addEventListener('change', async (e) => {
                 if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
                     const reader = new FileReader();
 
-                    reader.onload = (e) => {
-                        img.src = e.target.result;
-                        img.style.display = 'block';
-                        uploadOverlay.style.display = 'none';
-                        saveImages(); // Save after uploading
+                    reader.onload = async (e) => {
+                        loadingOverlay.style.display = 'flex';
+                        try {
+                            const response = await fetch(e.target.result);
+                            const blob = await response.blob();
+                            
+                            const index = img.dataset.index;
+                            const url = await saveImage(index, blob);
+                            
+                            img.src = url;
+                            img.style.display = 'block';
+                            uploadOverlay.style.display = 'none';
+                        } catch (error) {
+                            console.error('Error uploading image:', error);
+                            alert('Failed to upload image. Please try again.');
+                        } finally {
+                            loadingOverlay.style.display = 'none';
+                        }
                     };
 
                     reader.readAsDataURL(file);
+                }
+            });
+
+            removeButton.addEventListener('click', async () => {
+                if (!userId) return;
+                
+                const index = img.dataset.index;
+                loadingOverlay.style.display = 'flex';
+                
+                try {
+                    const imageRef = storage.ref(`users/${userId}/image${index}.jpg`);
+                    await imageRef.delete();
+                    
+                    img.src = '';
+                    img.style.display = 'none';
+                    uploadOverlay.style.display = 'flex';
+                    fileInput.value = '';
+                } catch (error) {
+                    console.error('Error removing image:', error);
+                    alert('Failed to remove image. Please try again.');
+                } finally {
+                    loadingOverlay.style.display = 'none';
                 }
             });
 
@@ -309,43 +401,39 @@
                 }
                 
                 cropper = new Cropper(modalImg, {
-                    aspectRatio: 1, // Forces a square crop
+                    aspectRatio: 1,
                     viewMode: 1,
                     autoCropArea: 1,
                 });
             });
-
-            removeButton.addEventListener('click', () => {
-                img.src = '';
-                img.style.display = 'none';
-                uploadOverlay.style.display = 'flex';
-                fileInput.value = '';
-                saveImages(); // Save after removing
-            });
         }
 
-        function closeModal() {
-            document.getElementById('cropModal').style.display = 'none';
-            if (cropper) {
-                cropper.destroy();
-                cropper = null;
-            }
-        }
-
-        function cropImage() {
+        async function cropImage() {
             if (!cropper || !activeGridItem) return;
             
-            const croppedCanvas = cropper.getCroppedCanvas();
-            const img = activeGridItem.querySelector('img');
-            img.src = croppedCanvas.toDataURL();
-            saveImages(); // Save after cropping
+            const loadingOverlay = activeGridItem.querySelector('.loading-overlay');
+            loadingOverlay.style.display = 'flex';
             
-            closeModal();
+            try {
+                const croppedCanvas = cropper.getCroppedCanvas();
+                const blob = await new Promise(resolve => croppedCanvas.toBlob(resolve, 'image/jpeg'));
+                
+                const img = activeGridItem.querySelector('img');
+                const index = img.dataset.index;
+                const url = await saveImage(index, blob);
+                
+                img.src = url;
+                closeModal();
+            } catch (error) {
+                console.error('Error cropping image:', error);
+                alert('Failed to save cropped image. Please try again.');
+            } finally {
+                loadingOverlay.style.display = 'none';
+            }
         }
 
         function createGridItems() {
             const container = document.querySelector('.grid-container');
-            // Changed to 9 items
             for (let i = 1; i <= 9; i++) {
                 const gridItem = document.createElement('div');
                 gridItem.className = 'grid-item';
@@ -362,6 +450,9 @@
                             <button class="icon-button crop-button" title="Crop">✂</button>
                             <button class="icon-button remove-button">×</button>
                         </div>
+                        <div class="loading-overlay">
+                            <div class="loading-spinner"></div>
+                        </div>
                     </div>
                     <input type="file" class="file-input" accept="image/*">
                 `;
@@ -369,9 +460,14 @@
                 setupGridItem(gridItem);
                 container.appendChild(gridItem);
             }
-            
-            // Load saved images after creating grid items
-            loadImages();
+        }
+
+        function closeModal() {
+            document.getElementById('cropModal').style.display = 'none';
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
         }
 
         document.addEventListener('DOMContentLoaded', createGridItems);
