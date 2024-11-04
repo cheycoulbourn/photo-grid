@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <style>
         * {
@@ -21,33 +19,6 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.8);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         .grid-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -60,7 +31,7 @@
 
         .grid-item {
             position: relative;
-            padding-bottom: 100%;
+            padding-bottom: 100%; /* Makes it a perfect square */
             background: white;
             overflow: hidden;
             transition: background-color 0.2s ease;
@@ -68,6 +39,7 @@
             border-radius: 4px;
         }
 
+        /* Rest of the styles remain exactly the same */
         .grid-item img {
             position: absolute;
             top: 0;
@@ -234,6 +206,11 @@
             color: white;
         }
 
+        .cropper-container {
+            width: 100%;
+            height: 100%;
+        }
+
         @media (max-width: 768px) {
             .grid-container {
                 gap: 2px;
@@ -247,9 +224,6 @@
 </head>
 <body>
     <div class="grid-container"></div>
-    <div class="loading-overlay">
-        <div class="loading-spinner"></div>
-    </div>
     
     <div class="modal" id="cropModal">
         <div class="modal-content">
@@ -268,58 +242,34 @@
     </div>
 
     <script>
-        // Initialize Firebase with your config
-        const firebaseConfig = {
-            apiKey: "AIzaSyA-7A_QOV-W0tCtlG-vJB5nTKxjnhK3Zrk",
-            authDomain: "image-grid-1d9d4.firebaseapp.com",
-            projectId: "image-grid-1d9d4",
-            storageBucket: "image-grid-1d9d4.firebasestorage.app",
-            messagingSenderId: "685249777137",
-            appId: "1:685249777137:web:b1c1daecd19b94b0784850",
-            measurementId: "G-WZMSH9YQK5"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const storage = firebase.storage();
-        
         let cropper = null;
         let activeGridItem = null;
-        const widgetId = new URLSearchParams(window.location.search).get('widgetId') || 'default';
 
-        // Show/hide loading overlay
-        function toggleLoading(show) {
-            document.querySelector('.loading-overlay').style.display = show ? 'flex' : 'none';
+        // Function to save images to localStorage
+        function saveImages() {
+            const images = {};
+            document.querySelectorAll('.grid-item img').forEach(img => {
+                const index = img.dataset.index;
+                if (img.src && img.style.display !== 'none') {
+                    images[index] = img.src;
+                }
+            });
+            localStorage.setItem('gridImages', JSON.stringify(images));
         }
 
-        // Save image to Firebase Storage
-        async function uploadImage(file, index) {
-            const storageRef = storage.ref(`widgets/${widgetId}/image${index}`);
-            const snapshot = await storageRef.put(file);
-            return await snapshot.ref.getDownloadURL();
-        }
-
-        // Load images from Firebase Storage
-        async function loadImages() {
-            toggleLoading(true);
-            try {
-                const imageRefs = await storage.ref(`widgets/${widgetId}`).listAll();
-                
-                for (const imageRef of imageRefs.items) {
-                    const url = await imageRef.getDownloadURL();
-                    const index = imageRef.name.replace('image', '');
+        // Function to load images from localStorage
+        function loadImages() {
+            const savedImages = localStorage.getItem('gridImages');
+            if (savedImages) {
+                const images = JSON.parse(savedImages);
+                Object.entries(images).forEach(([index, src]) => {
                     const img = document.querySelector(`img[data-index="${index}"]`);
-                    
                     if (img) {
-                        img.src = url;
+                        img.src = src;
                         img.style.display = 'block';
                         img.closest('.grid-item').querySelector('.upload-overlay').style.display = 'none';
                     }
-                }
-            } catch (error) {
-                console.error('Error loading images:', error);
-            } finally {
-                toggleLoading(false);
+                });
             }
         }
 
@@ -327,37 +277,26 @@
             const fileInput = gridItem.querySelector('.file-input');
             const uploadOverlay = gridItem.querySelector('.upload-overlay');
             const img = gridItem.querySelector('img');
-            const index = img.dataset.index;
+            const cropButton = gridItem.querySelector('.crop-button');
+            const removeButton = gridItem.querySelector('.remove-button');
 
             uploadOverlay.addEventListener('click', () => fileInput.click());
 
-            fileInput.addEventListener('change', async (e) => {
+            fileInput.addEventListener('change', (e) => {
                 if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
-                    toggleLoading(true);
+                    const reader = new FileReader();
 
-                    try {
-                        const url = await uploadImage(file, index);
-                        img.src = url;
+                    reader.onload = (e) => {
+                        img.src = e.target.result;
                         img.style.display = 'block';
                         uploadOverlay.style.display = 'none';
-                    } catch (error) {
-                        console.error('Error uploading image:', error);
-                        alert('Failed to upload image. Please try again.');
-                    } finally {
-                        toggleLoading(false);
-                    }
+                        saveImages(); // Save after uploading
+                    };
+
+                    reader.readAsDataURL(file);
                 }
             });
-
-            setupImageButtons(gridItem, index);
-        }
-
-        function setupImageButtons(gridItem, index) {
-            const cropButton = gridItem.querySelector('.crop-button');
-            const removeButton = gridItem.querySelector('.remove-button');
-            const img = gridItem.querySelector('img');
-            const uploadOverlay = gridItem.querySelector('.upload-overlay');
 
             cropButton.addEventListener('click', () => {
                 activeGridItem = gridItem;
@@ -370,47 +309,19 @@
                 }
                 
                 cropper = new Cropper(modalImg, {
-                    aspectRatio: 1,
+                    aspectRatio: 1, // Forces a square crop
                     viewMode: 1,
                     autoCropArea: 1,
                 });
             });
 
-            removeButton.addEventListener('click', async () => {
-                toggleLoading(true);
-                try {
-                    await storage.ref(`widgets/${widgetId}/image${index}`).delete();
-                    img.src = '';
-                    img.style.display = 'none';
-                    uploadOverlay.style.display = 'flex';
-                } catch (error) {
-                    console.error('Error removing image:', error);
-                    alert('Failed to remove image. Please try again.');
-                } finally {
-                    toggleLoading(false);
-                }
+            removeButton.addEventListener('click', () => {
+                img.src = '';
+                img.style.display = 'none';
+                uploadOverlay.style.display = 'flex';
+                fileInput.value = '';
+                saveImages(); // Save after removing
             });
-        }
-
-        async function cropImage() {
-            if (!cropper || !activeGridItem) return;
-            
-            const croppedCanvas = cropper.getCroppedCanvas();
-            const img = activeGridItem.querySelector('img');
-            const index = img.dataset.index;
-            
-            toggleLoading(true);
-            try {
-                const blob = await new Promise(resolve => croppedCanvas.toBlob(resolve));
-                const url = await uploadImage(blob, index);
-                img.src = url;
-            } catch (error) {
-                console.error('Error saving cropped image:', error);
-                alert('Failed to save cropped image. Please try again.');
-            } finally {
-                toggleLoading(false);
-                closeModal();
-            }
         }
 
         function closeModal() {
@@ -421,8 +332,20 @@
             }
         }
 
+        function cropImage() {
+            if (!cropper || !activeGridItem) return;
+            
+            const croppedCanvas = cropper.getCroppedCanvas();
+            const img = activeGridItem.querySelector('img');
+            img.src = croppedCanvas.toDataURL();
+            saveImages(); // Save after cropping
+            
+            closeModal();
+        }
+
         function createGridItems() {
             const container = document.querySelector('.grid-container');
+            // Changed to 9 items
             for (let i = 1; i <= 9; i++) {
                 const gridItem = document.createElement('div');
                 gridItem.className = 'grid-item';
@@ -446,12 +369,12 @@
                 setupGridItem(gridItem);
                 container.appendChild(gridItem);
             }
+            
+            // Load saved images after creating grid items
+            loadImages();
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            createGridItems();
-            loadImages();
-        });
+        document.addEventListener('DOMContentLoaded', createGridItems);
     </script>
 </body>
 </html>
