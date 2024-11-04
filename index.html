@@ -5,12 +5,221 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
-    <!-- Firebase SDK -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-storage-compat.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-auth-compat.js"></script>
     <style>
-        /* ... (keep existing styles) ... */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            margin: 0;
+            padding: 4px;
+            background: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 3px;
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 0;
+        }
+
+        .grid-item {
+            position: relative;
+            padding-bottom: 100%; /* Makes it a perfect square */
+            background: white;
+            overflow: hidden;
+            transition: background-color 0.2s ease;
+            border: 1px solid #dbdbdb;
+            border-radius: 4px;
+        }
+
+        /* Rest of the styles remain exactly the same */
+        .grid-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .upload-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            transition: background-color 0.2s ease;
+        }
+
+        .grid-item:hover .upload-overlay {
+            background-color: #f5f5f5;
+        }
+
+        .upload-icon {
+            width: 24px;
+            height: 24px;
+            margin-bottom: 8px;
+            stroke: black;
+            stroke-width: 1;
+            fill: none;
+        }
+
+        .upload-text {
+            color: black;
+            font-size: 12px;
+            text-align: center;
+            padding: 0 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .image-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .button-container {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: none;
+            gap: 8px;
+            z-index: 2;
+        }
+
+        .grid-item:hover .button-container {
+            display: flex;
+        }
+
+        .icon-button {
+            background: white;
+            border: 1px solid black;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: black;
+            padding: 0;
+            transition: all 0.2s ease;
+        }
+
+        .icon-button:hover {
+            background: black;
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            height: calc(100vh - 100px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-weight: normal;
+            letter-spacing: 0.5px;
+        }
+
+        .modal-body {
+            flex-grow: 1;
+            overflow: hidden;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid black;
+            cursor: pointer;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: black;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: white;
+            color: black;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: black;
+        }
+
+        .btn-secondary:hover {
+            background: black;
+            color: white;
+        }
+
+        .cropper-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .grid-container {
+                gap: 2px;
+            }
+            
+            .grid-item {
+                border-radius: 2px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -33,73 +242,34 @@
     </div>
 
     <script>
-        // Initialize Firebase (keep your existing config)
-        const firebaseConfig = {
-            apiKey: "AIzaSyA-7A_QOV-W0tCtlG-vJB5nTKxjnhK3Zrk",
-            authDomain: "image-grid-1d9d4.firebaseapp.com",
-            projectId: "image-grid-1d9d4",
-            storageBucket: "image-grid-1d9d4.firebasestorage.app",
-            messagingSenderId: "685249777137",
-            appId: "1:685249777137:web:b1c1daecd19b94b0784850",
-            measurementId: "G-WZMSH9YQK5"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const storage = firebase.storage();
-        let userId = null;
-
-        // Anonymous authentication
-        firebase.auth().signInAnonymously()
-            .then((userCredential) => {
-                userId = userCredential.user.uid;
-                loadImages();
-            })
-            .catch((error) => {
-                console.error("Auth error:", error);
-            });
-
         let cropper = null;
         let activeGridItem = null;
 
-        async function saveImage(index, file) {
-            if (!userId) return null;
-            
-            try {
-                // Create a reference to the file location
-                const imageRef = storage.ref(`users/${userId}/image${index}.jpg`);
-                
-                // Upload the file directly
-                const snapshot = await imageRef.put(file, {
-                    contentType: 'image/jpeg'
-                });
-                
-                // Get the download URL
-                const downloadURL = await snapshot.ref.getDownloadURL();
-                return downloadURL;
-            } catch (error) {
-                console.error('Error in saveImage:', error);
-                throw error;
-            }
+        // Function to save images to localStorage
+        function saveImages() {
+            const images = {};
+            document.querySelectorAll('.grid-item img').forEach(img => {
+                const index = img.dataset.index;
+                if (img.src && img.style.display !== 'none') {
+                    images[index] = img.src;
+                }
+            });
+            localStorage.setItem('gridImages', JSON.stringify(images));
         }
 
-        async function loadImages() {
-            if (!userId) return;
-
-            for (let i = 0; i < 9; i++) {
-                try {
-                    const imageRef = storage.ref(`users/${userId}/image${i}.jpg`);
-                    const url = await imageRef.getDownloadURL();
-                    const img = document.querySelector(`img[data-index="${i}"]`);
+        // Function to load images from localStorage
+        function loadImages() {
+            const savedImages = localStorage.getItem('gridImages');
+            if (savedImages) {
+                const images = JSON.parse(savedImages);
+                Object.entries(images).forEach(([index, src]) => {
+                    const img = document.querySelector(`img[data-index="${index}"]`);
                     if (img) {
-                        img.src = url;
+                        img.src = src;
                         img.style.display = 'block';
                         img.closest('.grid-item').querySelector('.upload-overlay').style.display = 'none';
                     }
-                } catch (error) {
-                    if (error.code !== 'storage/object-not-found') {
-                        console.error(`Error loading image ${i}:`, error);
-                    }
-                }
+                });
             }
         }
 
@@ -109,58 +279,22 @@
             const img = gridItem.querySelector('img');
             const cropButton = gridItem.querySelector('.crop-button');
             const removeButton = gridItem.querySelector('.remove-button');
-            const loadingOverlay = gridItem.querySelector('.loading-overlay');
 
             uploadOverlay.addEventListener('click', () => fileInput.click());
 
-            fileInput.addEventListener('change', async (e) => {
+            fileInput.addEventListener('change', (e) => {
                 if (e.target.files && e.target.files[0]) {
                     const file = e.target.files[0];
-                    loadingOverlay.style.display = 'flex';
-                    
-                    try {
-                        // Create a preview
-                        const reader = new FileReader();
-                        reader.onload = async (event) => {
-                            img.src = event.target.result;
-                            img.style.display = 'block';
-                            uploadOverlay.style.display = 'none';
-                        };
-                        reader.readAsDataURL(file);
+                    const reader = new FileReader();
 
-                        // Upload the original file
-                        const index = img.dataset.index;
-                        await saveImage(index, file);
-                    } catch (error) {
-                        console.error('Error uploading image:', error);
-                        alert('Failed to upload image. Please try again.');
-                        img.style.display = 'none';
-                        uploadOverlay.style.display = 'flex';
-                    } finally {
-                        loadingOverlay.style.display = 'none';
-                    }
-                }
-            });
+                    reader.onload = (e) => {
+                        img.src = e.target.result;
+                        img.style.display = 'block';
+                        uploadOverlay.style.display = 'none';
+                        saveImages(); // Save after uploading
+                    };
 
-            removeButton.addEventListener('click', async () => {
-                if (!userId) return;
-                
-                const index = img.dataset.index;
-                loadingOverlay.style.display = 'flex';
-                
-                try {
-                    const imageRef = storage.ref(`users/${userId}/image${index}.jpg`);
-                    await imageRef.delete();
-                    
-                    img.src = '';
-                    img.style.display = 'none';
-                    uploadOverlay.style.display = 'flex';
-                    fileInput.value = '';
-                } catch (error) {
-                    console.error('Error removing image:', error);
-                    alert('Failed to remove image. Please try again.');
-                } finally {
-                    loadingOverlay.style.display = 'none';
+                    reader.readAsDataURL(file);
                 }
             });
 
@@ -175,44 +309,43 @@
                 }
                 
                 cropper = new Cropper(modalImg, {
-                    aspectRatio: 1,
+                    aspectRatio: 1, // Forces a square crop
                     viewMode: 1,
                     autoCropArea: 1,
                 });
             });
+
+            removeButton.addEventListener('click', () => {
+                img.src = '';
+                img.style.display = 'none';
+                uploadOverlay.style.display = 'flex';
+                fileInput.value = '';
+                saveImages(); // Save after removing
+            });
         }
 
-        async function cropImage() {
+        function closeModal() {
+            document.getElementById('cropModal').style.display = 'none';
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+        }
+
+        function cropImage() {
             if (!cropper || !activeGridItem) return;
             
-            const loadingOverlay = activeGridItem.querySelector('.loading-overlay');
-            loadingOverlay.style.display = 'flex';
+            const croppedCanvas = cropper.getCroppedCanvas();
+            const img = activeGridItem.querySelector('img');
+            img.src = croppedCanvas.toDataURL();
+            saveImages(); // Save after cropping
             
-            try {
-                const croppedCanvas = cropper.getCroppedCanvas();
-                
-                // Get the cropped image as a blob
-                const blob = await new Promise(resolve => {
-                    croppedCanvas.toBlob(resolve, 'image/jpeg', 0.9);
-                });
-                
-                const img = activeGridItem.querySelector('img');
-                const index = img.dataset.index;
-                
-                // Save the cropped image
-                const url = await saveImage(index, blob);
-                img.src = url;
-                closeModal();
-            } catch (error) {
-                console.error('Error cropping image:', error);
-                alert('Failed to save cropped image. Please try again.');
-            } finally {
-                loadingOverlay.style.display = 'none';
-            }
+            closeModal();
         }
 
         function createGridItems() {
             const container = document.querySelector('.grid-container');
+            // Changed to 9 items
             for (let i = 1; i <= 9; i++) {
                 const gridItem = document.createElement('div');
                 gridItem.className = 'grid-item';
@@ -229,9 +362,6 @@
                             <button class="icon-button crop-button" title="Crop">✂</button>
                             <button class="icon-button remove-button">×</button>
                         </div>
-                        <div class="loading-overlay">
-                            <div class="loading-spinner"></div>
-                        </div>
                     </div>
                     <input type="file" class="file-input" accept="image/*">
                 `;
@@ -239,14 +369,9 @@
                 setupGridItem(gridItem);
                 container.appendChild(gridItem);
             }
-        }
-
-        function closeModal() {
-            document.getElementById('cropModal').style.display = 'none';
-            if (cropper) {
-                cropper.destroy();
-                cropper = null;
-            }
+            
+            // Load saved images after creating grid items
+            loadImages();
         }
 
         document.addEventListener('DOMContentLoaded', createGridItems);
